@@ -59,6 +59,26 @@ if (!$conn->connect_error) {
     </div>
   </header>
 
+  <!-- Notifikasi foto otomatis -->
+  <section class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <div class="text-sm font-semibold text-slate-900">Notifikasi</div>
+        <div id="notificationStatus" class="mt-1 text-xs text-slate-500">Memeriksa dukungan notifikasi…</div>
+      </div>
+      <button
+        id="enableNotificationsBtn"
+        type="button"
+        class="shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600"
+      >
+        Aktifkan
+      </button>
+    </div>
+    <div class="mt-2 text-[11px] text-slate-500">
+      Notifikasi muncul saat ada foto otomatis baru. Catatan: umumnya perlu HTTPS saat di-hosting.
+    </div>
+  </section>
+
   <section class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
     <div class="text-xs text-slate-500">Ringkasan</div>
     <div class="mt-2 grid grid-cols-3 gap-2">
@@ -261,6 +281,169 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
     alert('Gagal menghapus foto.');
   }
 });
+
+// ===== Notifikasi foto otomatis =====
+(async function () {
+  const btn = document.getElementById('enableNotificationsBtn');
+  const statusEl = document.getElementById('notificationStatus');
+  if (!btn || !statusEl) return;
+
+  const STORAGE_KEY = 'esp32cam:lastNotifiedAutoId:v1';
+  const POLL_MS = 5000;
+  let pollingHandle = null;
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  function disableBtn(reason) {
+    btn.disabled = true;
+    if (reason) btn.title = reason;
+  }
+
+  function enableBtn() {
+    btn.disabled = false;
+    btn.title = '';
+  }
+
+  function supportsNotifications() {
+    return ('Notification' in window);
+  }
+
+  function isSecureEnough() {
+    // Notifikasi di browser umumnya butuh secure context (HTTPS), kecuali localhost.
+    return window.isSecureContext;
+  }
+
+  let swReg = null;
+  if ('serviceWorker' in navigator) {
+    try {
+      swReg = await navigator.serviceWorker.register('sw.js', { scope: './' });
+    } catch (_) {
+      // Service worker tidak wajib untuk notifikasi saat halaman terbuka.
+    }
+  }
+
+  async function fetchLatestAuto() {
+    const res = await fetch('latest_photo.php?jenis=otomatis', {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    if (!json || !json.ok) return null;
+    return json.latest || null;
+  }
+
+  async function showPhotoNotification(latest) {
+    const title = 'Foto otomatis baru';
+    const body = latest && latest.waktu
+      ? `Waktu: ${latest.waktu}`
+      : (latest && latest.filename ? `File: ${latest.filename}` : 'Ada foto otomatis baru.');
+
+    const dataUrl = (latest && latest.url) ? latest.url : 'auto.php';
+
+    // Prefer service worker notification jika tersedia.
+    if (swReg && swReg.showNotification) {
+      await swReg.showNotification(title, {
+        body,
+        data: { url: dataUrl },
+      });
+      return;
+    }
+
+    const n = new Notification(title, {
+      body,
+      data: { url: dataUrl },
+    });
+    n.onclick = () => {
+      try {
+        window.open(dataUrl, '_blank');
+      } catch (_) {
+        // ignore
+      }
+    };
+  }
+
+  async function startPollingIfGranted() {
+    if (Notification.permission !== 'granted') return;
+    if (pollingHandle) return;
+
+    // Baseline: agar tidak langsung notifikasi untuk foto yang sudah ada.
+    const stored = Number(localStorage.getItem(STORAGE_KEY) || 0);
+    if (!stored) {
+      const latest = await fetchLatestAuto();
+      if (latest && latest.id) {
+        localStorage.setItem(STORAGE_KEY, String(latest.id));
+      }
+    }
+
+    pollingHandle = window.setInterval(async () => {
+      try {
+        const latest = await fetchLatestAuto();
+        if (!latest || !latest.id) return;
+
+        const lastNotifiedId = Number(localStorage.getItem(STORAGE_KEY) || 0);
+        if (latest.id > lastNotifiedId) {
+          await showPhotoNotification(latest);
+          localStorage.setItem(STORAGE_KEY, String(latest.id));
+        }
+      } catch (_) {
+        // ignore transient errors
+      }
+    }, POLL_MS);
+  }
+
+  function refreshUI() {
+    if (!supportsNotifications()) {
+      setStatus('Browser tidak mendukung notifikasi.');
+      disableBtn('Notifikasi tidak didukung');
+      return;
+    }
+
+    if (!isSecureEnough()) {
+      setStatus('Notifikasi butuh HTTPS (secure context).');
+      disableBtn('Butuh HTTPS');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setStatus('Aktif. Menunggu foto otomatis baru…');
+      disableBtn('Sudah aktif');
+      startPollingIfGranted();
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setStatus('Diblokir. Izinkan notifikasi dari pengaturan browser.');
+      disableBtn('Notifikasi diblokir');
+      return;
+    }
+
+    setStatus('Klik “Aktifkan” untuk mengizinkan notifikasi.');
+    enableBtn();
+  }
+
+  btn.addEventListener('click', async () => {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        // Setelah grant, baseline ulang agar tidak spam.
+        const latest = await fetchLatestAuto();
+        if (latest && latest.id) {
+          localStorage.setItem(STORAGE_KEY, String(latest.id));
+        }
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      refreshUI();
+    }
+  });
+
+  refreshUI();
+})();
 </script>
 
 </body>
