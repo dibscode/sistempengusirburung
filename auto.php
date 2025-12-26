@@ -1,5 +1,6 @@
 <?php
-$conn = new mysqli("localhost", "root", "", "esp32cam");
+// $conn = new mysqli("localhost", "root", "", "esp32cam");
+$conn = new mysqli("localhost", "dibscode", "Bh#DD|8X7wk+", "dibscode_deteksiburung");
 
 $totalFoto = 0;
 $totalOtomatis = 0;
@@ -36,7 +37,7 @@ if (!$conn->connect_error) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistem Monitoring Pengusir Burung</title>
-  <link rel="icon" type="image/png" href="https://nurulfikri.ac.id/wp-content/uploads/2022/06/Main-Logo-STTNF.png">
+  <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/6/65/Lambang_Resmi_UMJ.png">
   <script src="https://cdn.tailwindcss.com"></script>
 
   <script>

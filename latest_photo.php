@@ -17,7 +17,8 @@ if (!in_array($jenis, $allowedJenis, true)) {
     exit;
 }
 
-$conn = new mysqli('localhost', 'root', '', 'esp32cam');
+// $conn = new mysqli('localhost', 'root', '', 'esp32cam');
+$conn = new mysqli("localhost", "dibscode", "Bh#DD|8X7wk+", "dibscode_deteksiburung");
 if ($conn->connect_error) {
     http_response_code(500);
     echo json_encode([

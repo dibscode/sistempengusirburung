@@ -3,7 +3,8 @@ date_default_timezone_set("Asia/Jakarta");
 header("Content-Type: text/plain");
 header("Cache-Control: no-cache");
 
-$conn = new mysqli("localhost", "root", "", "esp32cam");
+// $conn = new mysqli("localhost", "root", "", "esp32cam");
+$conn = new mysqli("localhost", "dibscode", "Bh#DD|8X7wk+", "dibscode_deteksiburung");
 if ($conn->connect_error) {
     die("DB CONNECT ERROR");
 }

@@ -1,5 +1,6 @@
 <?php
-$conn = new mysqli("localhost", "root", "", "esp32cam");
+// $conn = new mysqli("localhost", "root", "", "esp32cam");
+$conn = new mysqli("localhost", "dibscode", "Bh#DD|8X7wk+", "dibscode_deteksiburung");
 header('Content-Type: application/json; charset=utf-8');
 
 if ($conn->connect_error) {
